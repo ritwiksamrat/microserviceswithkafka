@@ -1,11 +1,11 @@
 package main
 
 import (
-	"Newassgn/proto"
 	"context"
 	"fmt"
 	"net"
-
+	"encoding/json"
+	"github.com/ritwiksamrat/microserviceswithkafka/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
@@ -16,6 +16,7 @@ type server struct{}
 func main() {
 
 	fmt.Println("Initializing")
+	fmt.Println("Server has started")
 	listener, err := net.Listen("tcp", ":4040")
 	if err != nil {
 		panic(err.Error())
@@ -27,17 +28,28 @@ func main() {
 	if e := srv.Serve(listener); e != nil {
 		panic(err)
 	}
-	fmt.Println("Server has started")
+	
 }
+
+ type model struct{
+
+	 usesub string
+	 useval string
+ }
 
 func (s *server) Kafservice(ctx context.Context, request *proto.Request) (*proto.Response, error) {
 
 	key := request.GetSub()
 	value := request.GetVal()
 
-	producemap:map[string]string{
-		key: value
-	}
+	pa:=&model{key,value}
+	out, err := json.Marshal(pa)
+    if err != nil {
+        panic (err)
+    }
+//	producemap:=map[string]string{
+//		key: value,
+//	}
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost:9092"})
 	if err != nil {
@@ -63,7 +75,7 @@ func (s *server) Kafservice(ctx context.Context, request *proto.Request) (*proto
 
 	p.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          []byte(producemap),
+		Value:          []byte(string(out)),
 	}, nil)
 
 	p.Flush(15 * 1000)
