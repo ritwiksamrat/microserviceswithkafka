@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"encoding/json"
+
 	"github.com/ritwiksamrat/microserviceswithkafka/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -28,28 +28,12 @@ func main() {
 	if e := srv.Serve(listener); e != nil {
 		panic(err)
 	}
-	
+
 }
-
- type model struct{
-
-	 usesub string
-	 useval string
- }
-
 func (s *server) Kafservice(ctx context.Context, request *proto.Request) (*proto.Response, error) {
 
 	key := request.GetSub()
 	value := request.GetVal()
-
-	pa:=&model{key,value}
-	out, err := json.Marshal(pa)
-    if err != nil {
-        panic (err)
-    }
-//	producemap:=map[string]string{
-//		key: value,
-//	}
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost:9092"})
 	if err != nil {
@@ -71,14 +55,44 @@ func (s *server) Kafservice(ctx context.Context, request *proto.Request) (*proto
 		}
 	}()
 
-	topic := "sampleTopic"
-
+	topic := "myTopic"
+	var uname string = key
 	p.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          []byte(string(out)),
+		Value:          []byte(string(uname)),
 	}, nil)
 
 	p.Flush(15 * 1000)
+
+	//SECOND PRODUCER:-
+	p1, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost:9092"})
+	if err != nil {
+		panic(err)
+	}
+
+	defer p1.Close()
+
+	go func() {
+		for er := range p.Events() {
+			switch evs := er.(type) {
+			case *kafka.Message:
+				if evs.TopicPartition.Error != nil {
+					fmt.Printf("Delivery failed: %v\n", evs.TopicPartition)
+				} else {
+					fmt.Printf("Delivered message to %v\n", evs.TopicPartition)
+				}
+			}
+		}
+	}()
+
+	topic1 := "SampleTopic"
+	var acv string = value
+	p1.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic1, Partition: kafka.PartitionAny},
+		Value:          []byte(string(acv)),
+	}, nil)
+
+	p1.Flush(15 * 1000)
 
 	return &proto.Response{Result: "Success"}, nil
 }
