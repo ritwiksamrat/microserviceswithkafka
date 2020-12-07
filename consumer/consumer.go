@@ -3,9 +3,12 @@ package main
 import (
 	
 	"fmt"
-	// "log"
+	 "log"
 	// "os"
 	"time"
+	"context"
+	"database/sql"
+	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 const (  
@@ -14,6 +17,8 @@ const (
     hostname = "127.0.0.1:3306"
     dbname   = "realinfo"
 )
+
+var keyuname string
 func main() {
 	
 	db, err := dbConnection()
@@ -38,13 +43,15 @@ func main() {
 		uname,err:= c.ReadMessage(-1)
 		if err == nil {
 			fmt.Printf("Message on %s: %s\n", uname.TopicPartition, string(uname.Value))
+			keyuname= string(uname.Value)
 			
 		}else {
 			fmt.Printf("Consumer error: %v (%v)\n", err, uname)
 		}
 
 		currenttime:=time.Now()
-		fmt.Println("Current Time is: ",string(currenttime.Format("15:04")))
+		cttime:=string(currenttime.Format("15:04"))
+		fmt.Println("Current Time is: ",cttime)
 		var op int64
 		fmt.Println("You can give the time difference in hrs or mins or secs")
 		fmt.Println("1. Hours")
@@ -57,47 +64,163 @@ func main() {
 						var hors int64
 						fmt.Println("Enter the difference in hours")
 						fmt.Scanln(&hors)
-						hoursfunc(currenttime,hors)
+						hrsfn:=hoursfunc(currenttime,hors)
+						fmt.Println("EndTime is: ",hrsfn)
+						err:=inserttablehr(db,keyuname,cttime,hrsfn)
+						if err!=nil{
+							panic(err.Error())
+						}
+						
+						
 						break
 				case 2: 
 						var minus int64
 						fmt.Println("Enter the difference in minutes")
 						fmt.Scanln(&minus)
-						minutesfunc(currenttime,minus)
+						minsfn:=minutesfunc(currenttime,minus)
+						fmt.Println("EndTime is: ",minsfn)
+						err:=inserttablemin(db,keyuname,cttime,minsfn)
+						if err!=nil{
+							panic(err.Error())
+						}
 						break
 				case 3: 
 						var secons int64
 						fmt.Println("Enter the difference in seconds")
 						fmt.Scanln(&secons)
-						secondsfunc(currenttime,secons)
+						secsfn:=secondsfunc(currenttime,secons)
+						fmt.Println("EndTime is: ",secsfn)
+						err:=inserttablesec(db,keyuname,cttime,secsfn)
+						if err!=nil{
+							panic(err.Error())
+						}
+						
 						break
 				default: 
 						fmt.Println("You didn't give any inputs!!")
 						break
 			}
 
+
 		}
+		
+
 	defer c.Close()
 }
 
-	func hoursfunc(currenttime time.Time,hors int64){
+	func hoursfunc(currenttime time.Time,hors int64) string{
 		endtime := currenttime.Add(time.Hour*time.Duration(hors) +
 		time.Minute*time.Duration(00) +
 		time.Second*time.Duration(00))
-	    fmt.Println(string(endtime.Format("15:04")))
+		return string(endtime.Format("15:04"))
+	 //   fmt.Println(string(endtime.Format("15:04")))
 	}
 
-	func minutesfunc(currenttime time.Time,minus int64){
+	func minutesfunc(currenttime time.Time,minus int64) string{
 		endtime := currenttime.Add(time.Hour*time.Duration(00) +
 		time.Minute*time.Duration(minus) +
 		time.Second*time.Duration(00))
-	    fmt.Println(string(endtime.Format("15:04")))
+		return string(endtime.Format("15:04"))
+	 //   fmt.Println(string(endtime.Format("15:04")))
 
 	}
 
-	func secondsfunc(currenttime time.Time,secons int64){
+	func secondsfunc(currenttime time.Time,secons int64) string{
 		endtime := currenttime.Add(time.Hour*time.Duration(00) +
 		time.Minute*time.Duration(00) +
 		time.Second*time.Duration(secons))
-	    fmt.Println(string(endtime.Format("15:04")))
+		return string(endtime.Format("15:04"))
+	//    fmt.Println(string(endtime.Format("15:04")))
+	}
+
+	func dsn(dbName string) string {  
+		return fmt.Sprintf("%s:%s@tcp(%s)/%s", username, password, hostname, dbName)
+	}
+	
+	func dbConnection() (*sql.DB, error) {  
+		db, err := sql.Open("mysql", dsn(""))
+    	if err != nil {
+        log.Printf("Error %s when opening DB\n", err)
+        return nil, err
+   		 }
+    //defer db.Close()
+
+    ctx, cancelfunc := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancelfunc()
+
+    db.Close()
+
+	db, err = sql.Open("mysql", dsn(dbname))
+    if err != nil {
+        log.Printf("Error %s when opening DB", err)
+        return nil, err
+    }
+    
+    db.SetMaxOpenConns(20)
+    db.SetMaxIdleConns(20)
+    db.SetConnMaxLifetime(time.Minute * 5)
+
+    ctx, cancelfunc = context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancelfunc()
+    err = db.PingContext(ctx)
+    if err != nil {
+        log.Printf("Errors %s pinging DB", err)
+        return nil, err
+    }
+    log.Printf("Connected to DB %s successfully\n", dbname)
+	return db, nil
+}
+
+
+	func inserttablemin(db *sql.DB,keyuname string,ct string,et string) error{
+
+		var count int64
+		count=0
+		stmt, err := db.Prepare("INSERT INTO apiinfo (subject,CurrentTime,ENDTIME,COUNTER) values (?,?,?,?);")
+		if err != nil {
+		fmt.Print(err.Error())
+		}
+		_, err = stmt.Exec(keyuname,ct,et,count)
+
+		if err != nil {
+		fmt.Print(err.Error())
+		}
+		fmt.Println("Data has been gone to the database")
+    return nil
+
+	}
+
+	func inserttablehr(db *sql.DB,keyuname string,ct string,et string) error{
+
+		var count int64
+		count=0
+		stmt, err := db.Prepare("INSERT INTO apiinfo (subject,CurrentTime,ENDTIME,COUNTER) values (?,?,?,?);")
+		if err != nil {
+		fmt.Print(err.Error())
+		}
+		_, err = stmt.Exec(keyuname,ct,et,count)
+
+		if err != nil {
+		fmt.Print(err.Error())
+		}
+		fmt.Println("Data has been gone to the database")
+    return nil
+
+	}
+	func inserttablesec(db *sql.DB,keyuname string,ct string,et string) error{
+
+		var count int64
+		count=0
+		stmt, err := db.Prepare("INSERT INTO apiinfo (subject,CurrentTime,ENDTIME,COUNTER) values (?,?,?,?);")
+		if err != nil {
+		fmt.Print(err.Error())
+		}
+		_, err = stmt.Exec(keyuname,ct,et,count)
+
+		if err != nil {
+		fmt.Print(err.Error())
+		}
+		fmt.Println("Data has been gone to the database")
+    return nil
+
 	}
