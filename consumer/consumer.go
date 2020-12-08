@@ -8,7 +8,6 @@ import (
 	"context"
 	"database/sql"
 	"time"
-	"github.com/ritwiksamrat/microserviceswithkafka/consumer1"
 	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
@@ -22,10 +21,7 @@ const (
 
 
 var keyuname string
-var orgval string
 func main() {
-	orgval=consumer1.actualval
-	fmt.Println(orgval)
 	db, err := dbConnection()
 	if err != nil {
 		panic(err.Error())
@@ -100,8 +96,9 @@ func main() {
 			}
 
 			break
-		default:
+		case 4:
 			fmt.Println("You didn't give any inputs!!")
+			checkdifference(db,keyuname,cttime)
 			break
 		}
 
@@ -222,6 +219,24 @@ func inserttablesec(db *sql.DB, keyuname string, ct string, et string) error {
 		fmt.Print(err.Error())
 	}
 	fmt.Println("Data has been gone to the database")
+	return nil
+
+}
+
+func checkdifference(db *sql.DB,keyuname string ,cttime string) error{
+
+
+	stmt, err := db.Prepare("update apiinfo SET counter=counter+1 where subject=(?) AND (?)<=ENDTIME")
+	
+	if err != nil {
+		fmt.Print(err.Error())
+	}
+	_, err = stmt.Exec(keyuname, cttime)
+
+	if err != nil {
+		fmt.Print(err.Error())
+	}
+	fmt.Println("Data has been updated!!!")
 	return nil
 
 }

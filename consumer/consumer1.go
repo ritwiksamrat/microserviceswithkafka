@@ -8,6 +8,7 @@ import (
 	"time"
 	"context"
 	"database/sql"
+	
 	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
@@ -17,6 +18,8 @@ const (
     hostname = "127.0.0.1:3306"
     dbname   = "realinfo"
 )
+
+var actualval string
 func main() {
 	
 	db, err := dbConnection()
@@ -27,7 +30,7 @@ func main() {
     log.Printf("Successfully connected to database")
 	c1, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost",
-		"group.id":          "myGroup",
+		"group.id":          "group1",
 		"auto.offset.reset": "smallest",
 	})
 
@@ -40,8 +43,8 @@ func main() {
 		acv,err:= c1.ReadMessage(-1)
 		if err == nil {
 			fmt.Printf("Message on %s: %s\n", acv.TopicPartition, string(acv.Value))
-			actualval:=string(acv.Value)
-			insertMemberVal(db,actualval)
+			actualval=string(acv.Value)
+		//	insertMemberVal(db,actualval)
 			
 		}else {
 			fmt.Printf("Consumer error: %v (%v)\n", err, acv)
@@ -87,17 +90,18 @@ log.Printf("Connected to DB %s successfully\n", dbname)
 return db, nil
 }
 
-func insertMemberVal(db *sql.DB, actualval string) error{
+// func insertMemberVal(db *sql.DB, actualval string) error{
    
-    stmt, err := db.Prepare("INSERT INTO apiinfo (Value) values (?);")
-	if err != nil {
-		fmt.Print(err.Error())
-	}
-	_, err = stmt.Exec(actualval)
+ //   stmt, err := db.Prepare("INSERT INTO apiinfo (Value) values (?);")
+//	if err != nil {
+//		fmt.Print(err.Error())
+//	}
+//	_, err = stmt.Exec(actualval)
 
-	if err != nil {
-		fmt.Print(err.Error())
-    }
-    return nil
-}
+//	if err != nil {
+//		fmt.Print(err.Error())
+//    }
+//    return nil
+//}
 
+	
