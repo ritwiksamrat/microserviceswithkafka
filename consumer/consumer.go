@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
 	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
@@ -19,8 +20,8 @@ const (
 	dbname   = "realinfo"
 )
 
-
 var keyuname string
+
 func main() {
 	db, err := dbConnection()
 	if err != nil {
@@ -97,13 +98,11 @@ func main() {
 
 			break
 		case 4:
-			fmt.Println("You didn't give any inputs!!")
-			checkdifference(db,keyuname,cttime)
+			checkdifference(db, keyuname, cttime)
 			break
 		}
 
 	}
-
 
 }
 
@@ -223,20 +222,37 @@ func inserttablesec(db *sql.DB, keyuname string, ct string, et string) error {
 
 }
 
-func checkdifference(db *sql.DB,keyuname string ,cttime string) error{
+func checkdifference(db *sql.DB, keyuname string, cttime string) error {
 
+		var count int64
+		count = 0
 
-	stmt, err := db.Prepare("update apiinfo SET counter=counter+1 where subject=(?) AND (?)<=ENDTIME")
-	
-	if err != nil {
-		fmt.Print(err.Error())
+	stmt, err := db.Prepare("update apiinfo SET counter=counter+1 where subject=(?) AND (?)<ENDTIME")
+
+	if err!=nil{
+		panic(err.Error())
 	}
-	_, err = stmt.Exec(keyuname, cttime)
-
-	if err != nil {
-		fmt.Print(err.Error())
+	res,err:=stmt.Exec(keyuname, cttime)
+	if err!=nil{
+		panic(err.Error())
 	}
-	fmt.Println("Data has been updated!!!")
+
+	rowct,err:=res.RowsAffected()
+	if err!=nil{
+		panic(err.Error())
+	}
+	if(rowct==0){
+		stmt, err := db.Prepare("INSERT INTO apiinfo (subject,CurrentTime,COUNTER) values (?,?,?);")
+		if err != nil {
+			fmt.Print(err.Error())
+		}
+		_, err = stmt.Exec(keyuname, cttime,count)
+		if err!=nil{
+			panic(err.Error())
+		}
+		fmt.Println("Data Has Been Inserted!!")
+	}else{
+		fmt.Println("Data Has Been Updated!!")
+	}
 	return nil
-
 }
